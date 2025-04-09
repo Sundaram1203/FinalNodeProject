@@ -1,0 +1,39 @@
+{{!-- view/partials/content.html --}}
+<h2 style="text-align: center; color: #444; font-size: 50px; margin-top: 80px;">Thank You for Your Purchase!</h2>
+<div style=" padding: 40px; width: 80%; margin: 60px auto;">
+  <p style="font-size: 50px;">Hi <strong>{{name}}</strong>,</p>
+
+  <table width="80%" align="center" cellpadding="10" cellspacing="0" border="1"
+    style="border-collapse: collapse; font-size: 40px; text-align: left; margin-top: 50px; border: 1px solid #000;">
+    <thead>
+      <tr style="background-color: #f2f2f2;">
+        <th>Si. No</th>
+        <th>Product Image</th>
+        <th>Description</th>
+        <th>Quantity</th>
+        <th>Unit Price</th>
+        <th>Net Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each purchases}}
+        <tr>
+          <td>{{index}}</td>
+          <td><img src="{{image}}" alt="Product Image" style="height: 200px;" /></td>
+          <td>{{company}} {{name}}</td>
+          <td>{{quantity}}</td>
+          <td>${{price}}</td>
+          <td>${{netAmount}}</td>
+        </tr>
+      {{/each}}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5" style="text-align: right;"><strong>Total Amount:</strong></td>
+        <td><strong>{{total}}</strong></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<p style="font-size: 50px; padding: 180px;">We appreciate your business and hope you enjoy your product.</p>
