@@ -4,7 +4,7 @@ import puppeteer from "puppeteer";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
-import Handlebars from "handlebars";
+import ejs from "ejs";
 
 dotenv.config();
 
@@ -16,13 +16,11 @@ const convertImageToBase64 = (input) => {
     if (Buffer.isBuffer(input)) {
       return `data:image/png;base64,${input.toString("base64")}`;
     }
-
     const absolutePath = path.resolve(__dirname, input);
     if (!fs.existsSync(absolutePath)) {
       console.warn("Image not found:", absolutePath);
       return "";
     }
-
     const imageBuffer = fs.readFileSync(absolutePath, { encoding: "base64" });
     return `data:image/png;base64,${imageBuffer}`;
   } catch (err) {
@@ -34,18 +32,18 @@ const convertImageToBase64 = (input) => {
 const sendEmail = async (purchases) => {
   try {
     const { email, name } = purchases[0];
-    console.log("Sending to:", email);
+    console.log("Preparing to send to:", email);
 
-    // Load HTML partials
+    // Load all templates
     const header = fs.readFileSync(path.join(__dirname, "../view/partials/header.html"), "utf-8");
     const contentTemplate = fs.readFileSync(path.join(__dirname, "../view/partials/content.html"), "utf-8");
     const footer = fs.readFileSync(path.join(__dirname, "../view/partials/footer.html"), "utf-8");
 
-    // Convert logo and signature
+    // Base64 encode images
     const logoBase64 = convertImageToBase64("../view/image/PNG/mithzylogo.png");
     const signatureBase64 = convertImageToBase64("../view/image/PNG/signature.png");
 
-    // Group identical products
+    // Group products
     const grouped = {};
     for (const item of purchases) {
       const key = `${item.p_name}_${item.p_company}_${item.p_price}`;
@@ -74,38 +72,37 @@ const sendEmail = async (purchases) => {
 
     const totalAmount = purchaseList.reduce((sum, item) => sum + parseFloat(item.netAmount), 0);
 
-    // Render HTML using Handlebars
-    const template = Handlebars.compile(contentTemplate);
-    const processedContent = template({
+    // Render the EJS content template
+    const renderedContent = await ejs.render(contentTemplate, {
       name,
-      total: `$${totalAmount.toFixed(2)}`,
-      purchases: purchaseList, // ✅ Fixed variable here
+      total: `\u20B9${totalAmount.toFixed(2)}`,
+      purchases: purchaseList,
     });
 
-    // Combine HTML
-    let htmlTemplate = header + processedContent + footer;
-    htmlTemplate = htmlTemplate
+    // Merge header + content + footer
+    let fullHtml = header + renderedContent + footer;
+    fullHtml = fullHtml
       .replace(/{{logo}}/g, logoBase64)
       .replace(/{{signature}}/g, signatureBase64);
 
-    // Write HTML to file
-    const tempHtmlPath = path.join(__dirname, `receipt_temp_${Date.now()}.html`);
-    fs.writeFileSync(tempHtmlPath, htmlTemplate, "utf-8");
-
     // Generate PDF
-    const pdfPath = path.join(__dirname, `purchase_${Date.now()}.pdf`);
+    const timestamp = Date.now();
+    const pdfPath = path.join(__dirname, `purchase_${timestamp}.pdf`);
+
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
-
-    await page.goto(`file://${tempHtmlPath}`, { waitUntil: "load" });
+    await page.setContent(fullHtml, { waitUntil: "load" });
     await page.pdf({
       path: pdfPath,
-      width: "2480px",
-      height: "3508px",
+      format: "A4",
       printBackground: true,
-      scale: 1,
+      margin: {
+        top: "0px",
+        bottom: "0px",
+        left: "0px",
+        right: "0px",
+      },
     });
-
     await browser.close();
 
     // Send email
@@ -126,16 +123,18 @@ const sendEmail = async (purchases) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully!");
+    console.log("✅ Email sent successfully!");
 
-    // Cleanup
     fs.unlinkSync(pdfPath);
-    fs.unlinkSync(tempHtmlPath);
 
     return { success: true, message: "Email sent successfully." };
   } catch (error) {
-    console.error("Failed to send email:", error.message);
-    return { success: false, message: "Email sending failed", error: error.message };
+    console.error("❌ Error:", error.message);
+    return {
+      success: false,
+      message: "Email processing failed",
+      error: error.message,
+    };
   }
 };
 

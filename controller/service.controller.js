@@ -14,49 +14,50 @@ const getPurchases = async (req, res) => {
 
 const addPurchase = async (req, res) => {
     try {
-        const { client_id, product_id } = req.body;
-
-        if (!client_id || !product_id || (Array.isArray(product_id) && product_id.length === 0)) {
-            return res.status(400).json({ success: false, message: "Client ID and at least one product ID are required." });
-        }
-
-        const productIds = Array.isArray(product_id) ? product_id : [product_id];
-        const insertIds = [];
-
-        // Insert each product purchase
-        for (const id of productIds) {
-            const insertId = await crudoperation.insertPurchaseToDB(client_id, id);
-            insertIds.push(insertId);
-        }
-
-        if (!insertIds.length) {
-            return res.status(500).json({ success: false, message: "No purchases were inserted." });
-        }
-
-        // Get only the purchases just inserted
-        const purchases = await crudoperation.getPurchasesByInsertIds(insertIds);
-
-        if (!purchases || purchases.length === 0) {
-            return res.status(404).json({ success: false, message: "No purchase records found for email." });
-        }
-
-        // Send receipt email with all purchased items
-        const emailResult = await sendEmail(purchases);
-
-        res.status(201).json({
-            success: true,
-            message: "Purchase successful and email sent.",
-            insertIds,
-            emailStatus: emailResult,
-            purchases,
-        });
+      const { client_id, product_id } = req.body;
+  
+      if (!client_id || !product_id || (Array.isArray(product_id) && product_id.length === 0)) {
+        return res.status(400).json({ success: false, message: "Client ID and at least one product ID are required." });
+      }
+  
+      const productIds = Array.isArray(product_id) ? product_id : [product_id];
+      const insertIds = [];
+  
+      for (const id of productIds) {
+        const insertId = await crudoperation.insertPurchaseToDB(client_id, id);
+        insertIds.push(insertId);
+      }
+  
+      if (!insertIds.length) {
+        return res.status(500).json({ success: false, message: "No purchases were inserted." });
+      }
+  
+      const purchases = await crudoperation.getPurchasesByInsertIds(insertIds);
+  
+      if (!purchases || purchases.length === 0) {
+        return res.status(404).json({ success: false, message: "No purchase records found for email." });
+      }
+  
+      const emailResult = await sendEmail(purchases);
+  
+      res.status(201).json({
+        success: true,
+        message: "Purchase successful and email sent.",
+        insertIds,
+        emailStatus: {
+          success: emailResult.success,
+          message: emailResult.message,
+          error: emailResult.error || null,
+        },
+        totalItems: purchases.length, // Optional light metadata
+      });
+  
     } catch (error) {
-        console.error("Error adding purchase:", error);
-        res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+      console.error("Error adding purchase:", error);
+      res.status(500).json({ success: false, message: "Internal server error", error: error.message });
     }
-};
-
-
+  };
+  
 
 // Get Sales by Client ID
 const getSalesByClientId = async (req, res) => {
